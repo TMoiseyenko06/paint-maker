@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaintViz — Sherwin-Williams Room Visualizer</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">Paint<span>Viz</span></div>
+  <div class="subtitle">Sherwin-Williams Room Color Visualizer</div>
+</header>
+
+<!-- ── MAIN LAYOUT ──────────────────────────────────────────────────────────── -->
+<div class="app-body">
+
+  <!-- SIDE PANEL -->
+  <aside class="side-panel">
+
+    <!-- 1. Upload -->
+    <div class="panel-section">
+      <div class="section-title">1 · Upload Room Photo</div>
+      <label class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*">
+        <div class="icon">🏠</div>
+        <p>Click or drag &amp; drop a photo of your room</p>
+        <p class="hint">JPG, PNG, WEBP · up to 32 MB</p>
+      </label>
+    </div>
+
+    <!-- 2. Color -->
+    <div class="panel-section">
+      <div class="section-title">2 · Enter Paint Color Code</div>
+      <div class="color-input-row">
+        <input type="text" id="color-input" placeholder="e.g. SW 7029" maxlength="12"
+               autocomplete="off" spellcheck="false">
+        <button id="lookup-btn">Look Up</button>
+      </div>
+      <div id="color-preview-card" class="color-preview-card">
+        <div class="color-swatch" id="color-swatch"></div>
+        <div class="color-info">
+          <div class="color-name" id="color-name"></div>
+          <div class="color-code" id="color-code-display"></div>
+          <div class="color-hex"  id="color-hex"></div>
+        </div>
+      </div>
+      <div id="status-msg" class="status-msg"></div>
+    </div>
+
+    <!-- 3. Select walls -->
+    <div class="panel-section">
+      <div class="section-title">3 · Select Walls to Repaint</div>
+      <div class="tool-bar">
+        <button class="tool-btn" data-tool="brush">
+          <span class="icon">✏️</span>Brush
+        </button>
+        <button class="tool-btn" data-tool="eraser">
+          <span class="icon">🧹</span>Eraser
+        </button>
+        <button class="tool-btn" data-tool="wand">
+          <span class="icon">🪄</span>Auto Select
+        </button>
+      </div>
+
+      <!-- Brush size (shown for brush/eraser) -->
+      <div class="slider-row" id="brush-row">
+        <label>Brush</label>
+        <input type="range" id="brush-size" min="5" max="120" value="30">
+        <span id="brush-size-val">30</span>
+      </div>
+
+      <!-- Tolerance (shown for magic wand) -->
+      <div class="slider-row tolerance-row" id="tolerance-row" style="display:none">
+        <label>Tolerance</label>
+        <input type="range" id="tolerance-slider" min="5" max="80" value="30">
+        <span id="tolerance-val">30</span>
+      </div>
+
+      <div style="margin-top:12px">
+        <button class="action-btn secondary" id="clear-mask-btn">
+          🗑 Clear Selection
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. Apply -->
+    <div class="panel-section">
+      <div class="section-title">4 · Visualize</div>
+      <div class="actions-stack">
+        <button class="action-btn primary" id="visualize-btn">
+          🎨 Apply Paint Color
+        </button>
+        <button class="action-btn secondary" id="download-btn" disabled>
+          ⬇ Download Result
+        </button>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="panel-section">
+      <div class="section-title">Tips</div>
+      <ul style="font-size:.8rem; color:#666; line-height:1.8; padding-left:16px;">
+        <li>Use <strong>Auto Select</strong> and click a wall — it auto-fills similar colors.</li>
+        <li>Use <strong>Brush</strong> to paint over areas the wand missed.</li>
+        <li>Use <strong>Eraser</strong> to remove parts of the selection.</li>
+        <li>Drag the <strong>compare slider</strong> after painting to see before/after.</li>
+        <li>SW color codes: <em>SW 7029</em>, <em>SW7057</em>, <em>7036</em>, etc.</li>
+      </ul>
+    </div>
+
+  </aside>
+
+  <!-- CANVAS AREA -->
+  <div class="canvas-area">
+
+    <!-- Top toolbar: view mode -->
+    <div class="canvas-toolbar">
+      <button class="view-btn active" data-view="original">Original</button>
+      <button class="view-btn" data-view="result">Result</button>
+      <button class="view-btn" data-view="compare">Compare</button>
+      <span class="info-text" id="canvas-info">Upload a photo to get started</span>
+    </div>
+
+    <!-- Canvas wrapper -->
+    <div class="canvas-wrapper" id="canvas-wrapper">
+
+      <!-- Empty state -->
+      <div class="empty-state" id="empty-state">
+        <div class="big-icon">🖼</div>
+        <p>Upload a room photo to get started</p>
+      </div>
+
+      <!-- Compare container holds all layers -->
+      <div class="compare-container" id="compare-container">
+        <!-- Original image + mask overlay -->
+        <canvas id="main-canvas"></canvas>
+        <canvas id="mask-canvas" style="position:absolute;top:0;left:0;pointer-events:none;opacity:.45;"></canvas>
+
+        <!-- Result overlay (clipped for compare) -->
+        <div id="compare-overlay" style="position:absolute;top:0;left:0;overflow:hidden;display:none;">
+          <canvas id="result-canvas"></canvas>
+        </div>
+
+        <!-- Compare drag handle -->
+        <div id="compare-handle" style="display:none;"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
