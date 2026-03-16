@@ -1,123 +1,97 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PaintViz — Sherwin-Williams Room Visualizer</title>
-  <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
+{% extends "base.html" %}
+{% set active_page = "visualizer" %}
+{% block title %}PaintViz — Visualizer{% endblock %}
 
-<header>
-  <div class="logo">Paint<span>Viz</span></div>
-  <div class="subtitle">Sherwin-Williams Room Color Visualizer</div>
-</header>
-
+{% block body %}
 <div class="app-body">
 
   <!-- SIDE PANEL -->
   <aside class="side-panel">
 
-    <!-- Step 1 -->
-    <div class="panel-section">
-      <div class="section-title">1 · Upload Room Photo</div>
+    <!-- Step 1 — Upload -->
+    <section class="panel-section">
+      <h3 class="section-title">1 &middot; Upload Room Photo</h3>
       <label class="upload-zone" id="upload-zone">
         <input type="file" id="file-input" accept="image/*">
-        <div class="icon">🏠</div>
+        <div class="uz-icon">&#x1f3e0;</div>
         <p>Click or drag &amp; drop a room photo</p>
-        <p class="hint">JPG, PNG, WEBP · up to 32 MB</p>
+        <p class="hint">JPG / PNG / WEBP &middot; up to 64 MB</p>
       </label>
-    </div>
+    </section>
 
-    <!-- Step 2 -->
-    <div class="panel-section">
-      <div class="section-title">2 · Enter Paint Color Code</div>
-      <div class="color-input-row">
-        <input type="text" id="color-input" placeholder="e.g. SW 7029"
-               maxlength="12" autocomplete="off" spellcheck="false">
+    <!-- Step 2 — Colour -->
+    <section class="panel-section">
+      <h3 class="section-title">2 &middot; Sherwin-Williams Colour</h3>
+      <div class="color-row">
+        <input id="color-input" placeholder="e.g. SW 7029" maxlength="12"
+               autocomplete="off" spellcheck="false">
         <button id="lookup-btn">Look Up</button>
       </div>
-      <div id="color-preview-card" class="color-preview-card">
-        <div class="color-swatch" id="color-swatch"></div>
-        <div class="color-info">
-          <div class="color-name" id="color-name"></div>
-          <div class="color-code" id="color-code-display"></div>
-          <div class="color-hex"  id="color-hex"></div>
+      <div id="color-card" class="color-card hidden">
+        <div class="swatch" id="swatch"></div>
+        <div>
+          <div class="cn" id="c-name"></div>
+          <div class="cc" id="c-code"></div>
+          <div class="ch" id="c-hex"></div>
         </div>
       </div>
-      <div id="status-msg" class="status-msg"></div>
-    </div>
+    </section>
 
-    <!-- Step 3 — the ONE button -->
-    <div class="panel-section">
-      <div class="section-title">3 · Visualize</div>
-      <button class="action-btn paint-btn" id="paint-btn" disabled>
-        🎨 Paint My Room
+    <!-- Step 3 — Advanced (collapsible) -->
+    <details class="panel-section">
+      <summary class="section-title" style="cursor:pointer">Advanced Settings</summary>
+      <div class="form-grid">
+        <label>Steps <input id="opt-steps" type="number" value="30" min="10" max="100"></label>
+        <label>Guidance <input id="opt-guidance" type="number" value="7.5" min="1" max="20" step="0.5"></label>
+        <label>CN Scale <input id="opt-cn" type="number" value="0.7" min="0.1" max="2" step="0.05"></label>
+        <label>Strength <input id="opt-str" type="number" value="0.85" min="0.1" max="1" step="0.05"></label>
+        <label>Model
+          <select id="opt-model"><option value="">Default (Canny)</option></select>
+        </label>
+      </div>
+    </details>
+
+    <!-- Step 4 — Paint -->
+    <section class="panel-section">
+      <h3 class="section-title">3 &middot; Paint</h3>
+      <button class="btn paint-btn" id="paint-btn" disabled>
+        &#x1f3a8; Paint My Room
       </button>
-      <p class="paint-hint">
-        AI detects the walls and applies the color automatically.
-      </p>
-    </div>
+      <p class="hint center">AI detects walls &amp; applies colour via ControlNet.</p>
+      <div id="status" class="status hidden"></div>
+    </section>
 
     <!-- Result actions -->
-    <div class="panel-section" id="result-section" style="display:none">
-      <div class="section-title">Result</div>
-      <div class="actions-stack">
-        <button class="action-btn secondary" id="download-btn">
-          ⬇ Download Image
-        </button>
-        <button class="action-btn secondary" id="reset-btn">
-          ↺ Try Another Color
-        </button>
+    <section class="panel-section hidden" id="result-section">
+      <h3 class="section-title">Result</h3>
+      <div class="btn-stack">
+        <button class="btn sec" id="download-btn">&#x2B07; Download</button>
+        <button class="btn sec" id="reset-btn">&#x21BA; Try Another Colour</button>
       </div>
-    </div>
-
-    <!-- Tips -->
-    <div class="panel-section">
-      <div class="section-title">Tips</div>
-      <ul class="tips-list">
-        <li>SW codes: <em>SW 7029</em>, <em>SW7057</em>, <em>7036</em></li>
-        <li>Works best with well-lit, straight-on room photos.</li>
-        <li>Drag the <strong>compare slider</strong> to see before/after.</li>
-        <li>First run downloads the AI model (~85 MB).</li>
-      </ul>
-    </div>
+    </section>
 
   </aside>
 
   <!-- CANVAS AREA -->
-  <div class="canvas-area">
-
-    <div class="canvas-toolbar">
-      <button class="view-btn active" data-view="original">Original</button>
-      <button class="view-btn" data-view="result">Result</button>
-      <button class="view-btn" data-view="compare">Compare ◀▶</button>
+  <main class="canvas-area">
+    <div class="view-bar">
+      <button class="vb active" data-v="original">Original</button>
+      <button class="vb" data-v="result">Result</button>
+      <button class="vb" data-v="compare">Compare &#x25C0;&#x25B6;</button>
     </div>
-
-    <div class="canvas-wrapper" id="canvas-wrapper">
-
-      <div class="empty-state" id="empty-state">
-        <div class="big-icon">🖼</div>
-        <p>Upload a room photo to get started</p>
+    <div class="canvas-wrap" id="canvas-wrap">
+      <div class="empty" id="empty">&#x1f5bc;<br>Upload a room photo</div>
+      <div class="cmp" id="cmp">
+        <canvas id="cv-orig"></canvas>
+        <div id="cmp-overlay"><canvas id="cv-result"></canvas></div>
+        <div id="cmp-handle"></div>
       </div>
-
-      <div class="compare-container" id="compare-container">
-        <canvas id="main-canvas"></canvas>
-
-        <!-- Result overlay -->
-        <div id="compare-overlay" style="position:absolute;top:0;left:0;overflow:hidden;display:none;">
-          <canvas id="result-canvas"></canvas>
-        </div>
-
-        <!-- Compare handle -->
-        <div id="compare-handle" style="display:none;"></div>
-      </div>
-
     </div>
-  </div>
+  </main>
 
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script src="/static/js/app.js"></script>
-</body>
-</html>
+{% endblock %}

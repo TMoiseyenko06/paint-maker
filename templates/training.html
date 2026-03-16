@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% set active_page = "training" %}
+{% block title %}PaintViz — Training{% endblock %}
+
+{% block body %}
+<div class="train-layout">
+
+  <!-- TAB BAR -->
+  <div class="tab-bar">
+    <button class="tab active" data-tab="datasets">Datasets</button>
+    <button class="tab" data-tab="train">Train</button>
+    <button class="tab" data-tab="models">Models</button>
+  </div>
+
+  <!-- ═══ DATASETS TAB ═══ -->
+  <div class="tab-panel active" id="tab-datasets">
+
+    <div class="tp-header">
+      <h2>Datasets</h2>
+      <button class="btn sm" id="new-ds-btn">+ New Dataset</button>
+    </div>
+
+    <!-- New dataset form (hidden) -->
+    <div class="card hidden" id="new-ds-form">
+      <h3>Create Dataset</h3>
+      <p class="hint">A dataset needs <code>before/</code> and <code>after/</code> image pairs of the same rooms.</p>
+      <div class="form-row">
+        <input id="ds-name-input" placeholder="Dataset name" autocomplete="off">
+        <button class="btn" id="ds-create-btn">Create</button>
+      </div>
+    </div>
+
+    <!-- Dataset list -->
+    <div id="ds-list" class="ds-list">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+
+    <!-- Upload panel (shown when a dataset is selected) -->
+    <div class="card hidden" id="upload-panel">
+      <h3>Upload Image Pairs &mdash; <span id="up-ds-name"></span></h3>
+      <div class="pair-upload">
+        <div>
+          <label class="file-label">Before<input type="file" id="up-before" accept="image/*"></label>
+        </div>
+        <div>
+          <label class="file-label">After<input type="file" id="up-after" accept="image/*"></label>
+        </div>
+        <div>
+          <input id="up-prompt" placeholder="Prompt (optional)">
+        </div>
+        <button class="btn" id="up-submit">Upload Pair</button>
+      </div>
+      <div id="up-status" class="status hidden"></div>
+
+      <!-- Pair previews -->
+      <div id="pair-grid" class="pair-grid"></div>
+    </div>
+
+  </div>
+
+  <!-- ═══ TRAIN TAB ═══ -->
+  <div class="tab-panel" id="tab-train">
+
+    <div class="tp-header"><h2>Train ControlNet</h2></div>
+
+    <div class="card">
+      <div class="form-grid-2">
+        <label>Dataset
+          <select id="tr-dataset"></select>
+        </label>
+        <label>Model Name
+          <input id="tr-model-name" placeholder="my-paint-model" autocomplete="off">
+        </label>
+        <label>Epochs
+          <input id="tr-epochs" type="number" value="20" min="1" max="500">
+        </label>
+        <label>Learning Rate
+          <input id="tr-lr" type="number" value="0.00001" step="0.000001" min="0.0000001">
+        </label>
+        <label>Batch Size
+          <input id="tr-batch" type="number" value="1" min="1" max="16">
+        </label>
+        <label>Resolution
+          <select id="tr-res">
+            <option value="256">256</option>
+            <option value="512" selected>512</option>
+            <option value="768">768</option>
+          </select>
+        </label>
+        <label>Save Checkpoint Every N Epochs
+          <input id="tr-save" type="number" value="5" min="1">
+        </label>
+      </div>
+
+      <div class="btn-row" style="margin-top:20px">
+        <button class="btn paint-btn" id="tr-start-btn">&#x1F680; Start Training</button>
+        <button class="btn danger hidden" id="tr-stop-btn">&#x23F9; Stop</button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="card hidden" id="tr-progress-card">
+      <h3>Training Progress</h3>
+      <div class="progress-bar"><div class="progress-fill" id="tr-bar"></div></div>
+      <div class="tr-stats" id="tr-stats">
+        <span id="tr-epoch">Epoch 0/0</span>
+        <span id="tr-step">Step 0</span>
+        <span id="tr-loss">Loss: --</span>
+        <span id="tr-state">Idle</span>
+      </div>
+      <div id="tr-msg" class="status info"></div>
+      <!-- Loss chart -->
+      <canvas id="loss-chart" width="700" height="200"></canvas>
+    </div>
+
+  </div>
+
+  <!-- ═══ MODELS TAB ═══ -->
+  <div class="tab-panel" id="tab-models">
+
+    <div class="tp-header"><h2>Trained Models</h2></div>
+    <div id="model-list" class="model-list">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/training.js"></script>
+{% endblock %}
