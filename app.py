@@ -457,26 +457,6 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/api/detect-walls', methods=['POST'])
-def api_detect_walls():
-    """
-    Use the AI segmentation model to automatically detect walls in the image.
-    Expects JSON: { "image": "<base64 data URL>" }
-    Returns JSON: { "mask": "<base64 PNG of wall mask>" }
-    """
-    data = request.get_json()
-    if not data or not data.get('image'):
-        return jsonify({'error': 'Missing image data.'}), 400
-
-    try:
-        img_rgb = decode_image(data['image'])
-        mask = detect_walls_ai(img_rgb)
-        mask_rgb = np.stack([mask, mask, mask], axis=-1)
-        return jsonify({'mask': encode_image(mask_rgb)})
-    except Exception as e:
-        return jsonify({'error': f'Wall detection failed: {str(e)}'}), 500
-
-
 @app.route('/api/color/<path:color_code>')
 def api_get_color(color_code):
     """Return color info for a given SW code."""
@@ -487,30 +467,22 @@ def api_get_color(color_code):
     return jsonify(color)
 
 
-@app.route('/api/visualize', methods=['POST'])
-def api_visualize():
+@app.route('/api/paint', methods=['POST'])
+def api_paint():
     """
-    Apply paint color to uploaded image.
-    Expects JSON:
-      {
-        "image":  "<base64 data URL>",
-        "mask":   "<base64 data URL of grayscale mask>",
-        "color_code": "SW7029"
-      }
-    Returns JSON: { "result": "<base64 data URL>" }
+    One-shot endpoint: AI detects walls then applies paint color.
+    Expects JSON: { "image": "<base64 data URL>", "color_code": "SW7029" }
+    Returns JSON: { "result": "<base64 data URL>", "color": {...} }
     """
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No JSON payload received.'}), 400
 
     image_data = data.get('image')
-    mask_data = data.get('mask')
-    color_code = data.get('color_code', '').strip()
+    color_code  = data.get('color_code', '').strip()
 
     if not image_data:
         return jsonify({'error': 'Missing image data.'}), 400
-    if not mask_data:
-        return jsonify({'error': 'Missing mask data. Please paint over the walls first.'}), 400
     if not color_code:
         return jsonify({'error': 'Missing color_code.'}), 400
 
@@ -520,10 +492,40 @@ def api_visualize():
                                   'Please check the SW code (e.g. SW 7029).'}), 404
 
     try:
-        img_rgb = decode_image(image_data)
+        img_rgb   = decode_image(image_data)
+        mask_gray = detect_walls_ai(img_rgb)
+        result    = apply_paint_color(img_rgb, mask_gray, color['rgb'])
+        return jsonify({'result': encode_image(result), 'color': color})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/visualize', methods=['POST'])
+def api_visualize():
+    """Legacy endpoint kept for manual-mask use."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No JSON payload received.'}), 400
+
+    image_data = data.get('image')
+    mask_data  = data.get('mask')
+    color_code = data.get('color_code', '').strip()
+
+    if not image_data:
+        return jsonify({'error': 'Missing image data.'}), 400
+    if not mask_data:
+        return jsonify({'error': 'Missing mask data.'}), 400
+    if not color_code:
+        return jsonify({'error': 'Missing color_code.'}), 400
+
+    color = get_sw_color(color_code)
+    if not color:
+        return jsonify({'error': f'Color "{color_code}" not found.'}), 404
+
+    try:
+        img_rgb  = decode_image(image_data)
         mask_rgb = decode_image(mask_data)
 
-        # Convert mask to single channel grayscale
         if mask_rgb.ndim == 3:
             mask_gray = cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2GRAY)
         else:

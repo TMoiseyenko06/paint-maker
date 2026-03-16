@@ -8,35 +8,33 @@
 </head>
 <body>
 
-<!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
 <header>
   <div class="logo">Paint<span>Viz</span></div>
   <div class="subtitle">Sherwin-Williams Room Color Visualizer</div>
 </header>
 
-<!-- ── MAIN LAYOUT ──────────────────────────────────────────────────────────── -->
 <div class="app-body">
 
   <!-- SIDE PANEL -->
   <aside class="side-panel">
 
-    <!-- 1. Upload -->
+    <!-- Step 1 -->
     <div class="panel-section">
       <div class="section-title">1 · Upload Room Photo</div>
       <label class="upload-zone" id="upload-zone">
         <input type="file" id="file-input" accept="image/*">
         <div class="icon">🏠</div>
-        <p>Click or drag &amp; drop a photo of your room</p>
+        <p>Click or drag &amp; drop a room photo</p>
         <p class="hint">JPG, PNG, WEBP · up to 32 MB</p>
       </label>
     </div>
 
-    <!-- 2. Color -->
+    <!-- Step 2 -->
     <div class="panel-section">
       <div class="section-title">2 · Enter Paint Color Code</div>
       <div class="color-input-row">
-        <input type="text" id="color-input" placeholder="e.g. SW 7029" maxlength="12"
-               autocomplete="off" spellcheck="false">
+        <input type="text" id="color-input" placeholder="e.g. SW 7029"
+               maxlength="12" autocomplete="off" spellcheck="false">
         <button id="lookup-btn">Look Up</button>
       </div>
       <div id="color-preview-card" class="color-preview-card">
@@ -50,51 +48,26 @@
       <div id="status-msg" class="status-msg"></div>
     </div>
 
-    <!-- 3. AI Wall Detection -->
+    <!-- Step 3 — the ONE button -->
     <div class="panel-section">
-      <div class="section-title">3 · Detect Walls with AI</div>
-      <button class="action-btn ai-btn" id="detect-walls-btn" disabled>
-        <span id="detect-icon">&#x1F916;</span> Detect Walls Automatically
+      <div class="section-title">3 · Visualize</div>
+      <button class="action-btn paint-btn" id="paint-btn" disabled>
+        🎨 Paint My Room
       </button>
-      <p style="font-size:.75rem;color:#888;margin-top:8px;line-height:1.5;">
-        AI will analyse the photo and highlight every wall. Refine below if needed.
+      <p class="paint-hint">
+        AI detects the walls and applies the color automatically.
       </p>
     </div>
 
-    <!-- 3b. Refine (touch-up tools) -->
-    <div class="panel-section">
-      <div class="section-title">Refine Selection (optional)</div>
-      <div class="tool-bar">
-        <button class="tool-btn" data-tool="brush">
-          <span class="icon">✏️</span>Add
-        </button>
-        <button class="tool-btn" data-tool="eraser">
-          <span class="icon">🧹</span>Remove
-        </button>
-      </div>
-
-      <div class="slider-row" id="brush-row">
-        <label>Brush</label>
-        <input type="range" id="brush-size" min="5" max="120" value="30">
-        <span id="brush-size-val">30</span>
-      </div>
-
-      <div style="margin-top:10px">
-        <button class="action-btn secondary" id="clear-mask-btn">
-          🗑 Clear Selection
-        </button>
-      </div>
-    </div>
-
-    <!-- 4. Apply -->
-    <div class="panel-section">
-      <div class="section-title">4 · Visualize</div>
+    <!-- Result actions -->
+    <div class="panel-section" id="result-section" style="display:none">
+      <div class="section-title">Result</div>
       <div class="actions-stack">
-        <button class="action-btn primary" id="visualize-btn">
-          🎨 Apply Paint Color
+        <button class="action-btn secondary" id="download-btn">
+          ⬇ Download Image
         </button>
-        <button class="action-btn secondary" id="download-btn" disabled>
-          ⬇ Download Result
+        <button class="action-btn secondary" id="reset-btn">
+          ↺ Try Another Color
         </button>
       </div>
     </div>
@@ -102,12 +75,11 @@
     <!-- Tips -->
     <div class="panel-section">
       <div class="section-title">Tips</div>
-      <ul style="font-size:.8rem; color:#666; line-height:1.8; padding-left:16px;">
-        <li>Click <strong>Detect Walls</strong> — AI finds all wall surfaces instantly.</li>
-        <li>Use <strong>Add / Remove</strong> brush to touch up the AI selection.</li>
-        <li>Drag the <strong>compare slider</strong> after painting to see before/after.</li>
-        <li>SW color codes: <em>SW 7029</em>, <em>SW7057</em>, <em>7036</em>, etc.</li>
-        <li>First detection downloads the model (~85 MB) — subsequent runs are instant.</li>
+      <ul class="tips-list">
+        <li>SW codes: <em>SW 7029</em>, <em>SW7057</em>, <em>7036</em></li>
+        <li>Works best with well-lit, straight-on room photos.</li>
+        <li>Drag the <strong>compare slider</strong> to see before/after.</li>
+        <li>First run downloads the AI model (~85 MB).</li>
       </ul>
     </div>
 
@@ -116,35 +88,28 @@
   <!-- CANVAS AREA -->
   <div class="canvas-area">
 
-    <!-- Top toolbar: view mode -->
     <div class="canvas-toolbar">
       <button class="view-btn active" data-view="original">Original</button>
       <button class="view-btn" data-view="result">Result</button>
-      <button class="view-btn" data-view="compare">Compare</button>
-      <span class="info-text" id="canvas-info">Upload a photo to get started</span>
+      <button class="view-btn" data-view="compare">Compare ◀▶</button>
     </div>
 
-    <!-- Canvas wrapper -->
     <div class="canvas-wrapper" id="canvas-wrapper">
 
-      <!-- Empty state -->
       <div class="empty-state" id="empty-state">
         <div class="big-icon">🖼</div>
         <p>Upload a room photo to get started</p>
       </div>
 
-      <!-- Compare container holds all layers -->
       <div class="compare-container" id="compare-container">
-        <!-- Original image + mask overlay -->
         <canvas id="main-canvas"></canvas>
-        <canvas id="mask-canvas" style="position:absolute;top:0;left:0;pointer-events:none;opacity:.45;"></canvas>
 
-        <!-- Result overlay (clipped for compare) -->
+        <!-- Result overlay -->
         <div id="compare-overlay" style="position:absolute;top:0;left:0;overflow:hidden;display:none;">
           <canvas id="result-canvas"></canvas>
         </div>
 
-        <!-- Compare drag handle -->
+        <!-- Compare handle -->
         <div id="compare-handle" style="display:none;"></div>
       </div>
 
