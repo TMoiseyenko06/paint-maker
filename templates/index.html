@@ -50,36 +50,36 @@
       <div id="status-msg" class="status-msg"></div>
     </div>
 
-    <!-- 3. Select walls -->
+    <!-- 3. AI Wall Detection -->
     <div class="panel-section">
-      <div class="section-title">3 · Select Walls to Repaint</div>
+      <div class="section-title">3 · Detect Walls with AI</div>
+      <button class="action-btn ai-btn" id="detect-walls-btn" disabled>
+        <span id="detect-icon">&#x1F916;</span> Detect Walls Automatically
+      </button>
+      <p style="font-size:.75rem;color:#888;margin-top:8px;line-height:1.5;">
+        AI will analyse the photo and highlight every wall. Refine below if needed.
+      </p>
+    </div>
+
+    <!-- 3b. Refine (touch-up tools) -->
+    <div class="panel-section">
+      <div class="section-title">Refine Selection (optional)</div>
       <div class="tool-bar">
         <button class="tool-btn" data-tool="brush">
-          <span class="icon">✏️</span>Brush
+          <span class="icon">✏️</span>Add
         </button>
         <button class="tool-btn" data-tool="eraser">
-          <span class="icon">🧹</span>Eraser
-        </button>
-        <button class="tool-btn" data-tool="wand">
-          <span class="icon">🪄</span>Auto Select
+          <span class="icon">🧹</span>Remove
         </button>
       </div>
 
-      <!-- Brush size (shown for brush/eraser) -->
       <div class="slider-row" id="brush-row">
         <label>Brush</label>
         <input type="range" id="brush-size" min="5" max="120" value="30">
         <span id="brush-size-val">30</span>
       </div>
 
-      <!-- Tolerance (shown for magic wand) -->
-      <div class="slider-row tolerance-row" id="tolerance-row" style="display:none">
-        <label>Tolerance</label>
-        <input type="range" id="tolerance-slider" min="5" max="80" value="30">
-        <span id="tolerance-val">30</span>
-      </div>
-
-      <div style="margin-top:12px">
+      <div style="margin-top:10px">
         <button class="action-btn secondary" id="clear-mask-btn">
           🗑 Clear Selection
         </button>
@@ -103,11 +103,11 @@
     <div class="panel-section">
       <div class="section-title">Tips</div>
       <ul style="font-size:.8rem; color:#666; line-height:1.8; padding-left:16px;">
-        <li>Use <strong>Auto Select</strong> and click a wall — it auto-fills similar colors.</li>
-        <li>Use <strong>Brush</strong> to paint over areas the wand missed.</li>
-        <li>Use <strong>Eraser</strong> to remove parts of the selection.</li>
+        <li>Click <strong>Detect Walls</strong> — AI finds all wall surfaces instantly.</li>
+        <li>Use <strong>Add / Remove</strong> brush to touch up the AI selection.</li>
         <li>Drag the <strong>compare slider</strong> after painting to see before/after.</li>
         <li>SW color codes: <em>SW 7029</em>, <em>SW7057</em>, <em>7036</em>, etc.</li>
+        <li>First detection downloads the model (~85 MB) — subsequent runs are instant.</li>
       </ul>
     </div>
 

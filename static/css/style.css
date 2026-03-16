@@ -227,6 +227,14 @@ header .subtitle {
 .action-btn.primary:hover { background: #b01f22; }
 .action-btn.secondary { background: var(--sw-light); color: var(--sw-dark); border: 1px solid var(--sw-border); }
 .action-btn.secondary:hover { background: var(--sw-border); }
+.action-btn.ai-btn {
+  background: linear-gradient(135deg, #1a6e3c 0%, #2d9d5a 100%);
+  color: #fff;
+  font-size: .95rem;
+}
+.action-btn.ai-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #165c31 0%, #258048 100%);
+}
 .action-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .actions-stack { display: flex; flex-direction: column; gap: 8px; }

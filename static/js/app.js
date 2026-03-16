@@ -11,55 +11,52 @@ const state = {
   resultDataURL: null,    // base64 PNG of painted result
   currentColor: null,     // { name, hex, rgb, code }
 
-  activeTool: 'brush',    // 'brush' | 'eraser' | 'wand'
+  activeTool: 'brush',    // 'brush' | 'eraser'
   brushSize: 30,
-  tolerance: 30,
 
   isDrawing: false,
   viewMode: 'original',   // 'original' | 'result' | 'compare'
 
-  // Canvas dimensions (display)
   canvasW: 0,
   canvasH: 0,
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
-const uploadZone     = document.getElementById('upload-zone');
-const fileInput      = document.getElementById('file-input');
-const colorInput     = document.getElementById('color-input');
-const lookupBtn      = document.getElementById('lookup-btn');
-const colorCard      = document.getElementById('color-preview-card');
-const colorSwatch    = document.getElementById('color-swatch');
-const colorName      = document.getElementById('color-name');
-const colorCode      = document.getElementById('color-code-display');
-const colorHex       = document.getElementById('color-hex');
+const uploadZone      = document.getElementById('upload-zone');
+const fileInput       = document.getElementById('file-input');
+const colorInput      = document.getElementById('color-input');
+const lookupBtn       = document.getElementById('lookup-btn');
+const colorCard       = document.getElementById('color-preview-card');
+const colorSwatch     = document.getElementById('color-swatch');
+const colorName       = document.getElementById('color-name');
+const colorCode       = document.getElementById('color-code-display');
+const colorHex        = document.getElementById('color-hex');
 
-const toolBtns       = document.querySelectorAll('.tool-btn[data-tool]');
-const brushSizeSlider= document.getElementById('brush-size');
-const brushSizeVal   = document.getElementById('brush-size-val');
-const toleranceSlider= document.getElementById('tolerance-slider');
-const toleranceVal   = document.getElementById('tolerance-val');
-const toleranceRow   = document.getElementById('tolerance-row');
-const brushRow       = document.getElementById('brush-row');
+const toolBtns        = document.querySelectorAll('.tool-btn[data-tool]');
+const brushSizeSlider = document.getElementById('brush-size');
+const brushSizeVal    = document.getElementById('brush-size-val');
+const brushRow        = document.getElementById('brush-row');
 
-const clearMaskBtn   = document.getElementById('clear-mask-btn');
-const visualizeBtn   = document.getElementById('visualize-btn');
-const downloadBtn    = document.getElementById('download-btn');
-const statusMsg      = document.getElementById('status-msg');
+const detectWallsBtn  = document.getElementById('detect-walls-btn');
+const detectIcon      = document.getElementById('detect-icon');
+const clearMaskBtn    = document.getElementById('clear-mask-btn');
+const visualizeBtn    = document.getElementById('visualize-btn');
+const downloadBtn     = document.getElementById('download-btn');
+const statusMsg       = document.getElementById('status-msg');
 
-const mainCanvas     = document.getElementById('main-canvas');
-const maskCanvas     = document.getElementById('mask-canvas');
-const resultCanvas   = document.getElementById('result-canvas');
-const compareHandle  = document.getElementById('compare-handle');
-const compareOverlay = document.getElementById('compare-overlay');
-const emptyState     = document.getElementById('empty-state');
+const mainCanvas      = document.getElementById('main-canvas');
+const maskCanvas      = document.getElementById('mask-canvas');
+const resultCanvas    = document.getElementById('result-canvas');
+const compareHandle   = document.getElementById('compare-handle');
+const compareOverlay  = document.getElementById('compare-overlay');
+const emptyState      = document.getElementById('empty-state');
 
-const viewBtns       = document.querySelectorAll('.view-btn[data-view]');
-const canvasWrapper  = document.getElementById('canvas-wrapper');
+const viewBtns        = document.querySelectorAll('.view-btn[data-view]');
+const canvasWrapper   = document.getElementById('canvas-wrapper');
 
-const mainCtx  = mainCanvas.getContext('2d');
-const maskCtx  = maskCanvas.getContext('2d');
-const resultCtx= resultCanvas.getContext('2d');
+const mainCtx   = mainCanvas.getContext('2d');
+const maskCtx   = maskCanvas.getContext('2d');
+const resultCtx = resultCanvas.getContext('2d');
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 uploadZone.addEventListener('dragover', e => {
@@ -88,7 +85,6 @@ function loadImageFile(file) {
     img.onload = () => {
       state.originalImage = img;
 
-      // Size the canvas to fit viewport while keeping aspect ratio
       const maxW = canvasWrapper.clientWidth  - 40;
       const maxH = canvasWrapper.clientHeight - 40;
       const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
@@ -100,24 +96,20 @@ function loadImageFile(file) {
         c.height = state.canvasH;
       });
 
-      // Position result overlay
       compareOverlay.style.width  = state.canvasW + 'px';
       compareOverlay.style.height = state.canvasH + 'px';
 
-      // Draw original
       mainCtx.drawImage(img, 0, 0, state.canvasW, state.canvasH);
       state.originalDataURL = mainCanvas.toDataURL('image/png');
 
-      // Clear mask
       maskCtx.clearRect(0, 0, state.canvasW, state.canvasH);
-
-      // Reset result
       state.resultDataURL = null;
       resultCtx.clearRect(0, 0, state.canvasW, state.canvasH);
 
       emptyState.style.display = 'none';
+      detectWallsBtn.disabled = false;
       setViewMode('original');
-      showStatus('Image loaded. Paint over the walls you want to recolor.', 'info');
+      showStatus('Image loaded. Click "Detect Walls Automatically" to let the AI select the walls.', 'info');
     };
     img.src = e.target.result;
   };
@@ -160,12 +152,74 @@ async function lookupColor() {
   }
 }
 
-// ── Tools ─────────────────────────────────────────────────────────────────────
+// ── AI Wall Detection ─────────────────────────────────────────────────────────
+detectWallsBtn.addEventListener('click', async () => {
+  if (!state.originalImage) {
+    showStatus('Upload a room photo first.', 'error');
+    return;
+  }
+
+  detectWallsBtn.disabled = true;
+  detectIcon.textContent = '';
+  detectWallsBtn.innerHTML = '<span class="spinner"></span> Analysing room…';
+  showStatus('AI is detecting walls — first run downloads the model (~85 MB), subsequent runs are instant.', 'info');
+
+  try {
+    const res = await fetch('/api/detect-walls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: state.originalDataURL }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showStatus(data.error || 'Wall detection failed.', 'error');
+      return;
+    }
+
+    // Replace current mask with AI result
+    const maskImg = new Image();
+    maskImg.onload = () => {
+      maskCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+      // Draw mask tinted blue so it's visible as a selection overlay
+      maskCtx.globalCompositeOperation = 'source-over';
+
+      // Create an off-screen canvas to tint the grayscale mask
+      const tmp = document.createElement('canvas');
+      tmp.width  = state.canvasW;
+      tmp.height = state.canvasH;
+      const tCtx = tmp.getContext('2d');
+
+      tCtx.drawImage(maskImg, 0, 0, state.canvasW, state.canvasH);
+      // Tint white pixels to a semi-transparent blue
+      const id = tCtx.getImageData(0, 0, state.canvasW, state.canvasH);
+      for (let i = 0; i < id.data.length; i += 4) {
+        const v = id.data[i]; // grayscale value
+        id.data[i]     = 70;   // R
+        id.data[i + 1] = 130;  // G
+        id.data[i + 2] = 200;  // B
+        id.data[i + 3] = v;    // A — walls are opaque, non-walls transparent
+      }
+      tCtx.putImageData(id, 0, 0);
+      maskCtx.drawImage(tmp, 0, 0);
+
+      showStatus('Walls detected! Use the Add/Remove brush to refine, then click Apply Paint Color.', 'success');
+    };
+    maskImg.src = data.mask;
+
+  } catch (err) {
+    showStatus('Network error — could not reach the server.', 'error');
+  } finally {
+    detectWallsBtn.disabled = false;
+    detectWallsBtn.innerHTML = '<span id="detect-icon">&#x1F916;</span> Detect Walls Automatically';
+  }
+});
+
+// ── Brush / Eraser tools ──────────────────────────────────────────────────────
 toolBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     state.activeTool = btn.dataset.tool;
     toolBtns.forEach(b => b.classList.toggle('active', b === btn));
-    updateToolUI();
   });
 });
 
@@ -173,30 +227,15 @@ brushSizeSlider.addEventListener('input', () => {
   state.brushSize = +brushSizeSlider.value;
   brushSizeVal.textContent = state.brushSize;
 });
-toleranceSlider.addEventListener('input', () => {
-  state.tolerance = +toleranceSlider.value;
-  toleranceVal.textContent = state.tolerance;
-});
 
-function updateToolUI() {
-  const isWand  = state.activeTool === 'wand';
-  const isBrush = state.activeTool === 'brush' || state.activeTool === 'eraser';
-  toleranceRow.style.display = isWand ? '' : 'none';
-  brushRow.style.display     = isBrush ? '' : 'none';
-  mainCanvas.style.cursor    = isWand ? 'cell' : 'crosshair';
-}
-
-// ── Drawing ───────────────────────────────────────────────────────────────────
 mainCanvas.addEventListener('mousedown', onCanvasDown);
 mainCanvas.addEventListener('mousemove', onCanvasMove);
 mainCanvas.addEventListener('mouseup',   () => { state.isDrawing = false; });
 mainCanvas.addEventListener('mouseleave',() => { state.isDrawing = false; });
 
-// Touch support
 mainCanvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  const t = e.touches[0];
-  onCanvasDown(syntheticEvent(t));
+  onCanvasDown(syntheticEvent(e.touches[0]));
 });
 mainCanvas.addEventListener('touchmove', e => {
   e.preventDefault();
@@ -206,19 +245,11 @@ mainCanvas.addEventListener('touchend', () => { state.isDrawing = false; });
 
 function syntheticEvent(touch) {
   const rect = mainCanvas.getBoundingClientRect();
-  return {
-    offsetX: touch.clientX - rect.left,
-    offsetY: touch.clientY - rect.top,
-    buttons: 1,
-  };
+  return { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top, buttons: 1 };
 }
 
 function onCanvasDown(e) {
   if (!state.originalImage) return;
-  if (state.activeTool === 'wand') {
-    handleMagicWand(e.offsetX, e.offsetY);
-    return;
-  }
   state.isDrawing = true;
   drawBrush(e.offsetX, e.offsetY);
 }
@@ -230,51 +261,22 @@ function onCanvasMove(e) {
 
 function drawBrush(x, y) {
   const r = state.brushSize / 2;
-  maskCtx.globalCompositeOperation =
-    state.activeTool === 'eraser' ? 'destination-out' : 'source-over';
-  maskCtx.fillStyle = 'rgba(70, 130, 200, 1)';
+  if (state.activeTool === 'eraser') {
+    maskCtx.globalCompositeOperation = 'destination-out';
+    maskCtx.fillStyle = 'rgba(0,0,0,1)';
+  } else {
+    maskCtx.globalCompositeOperation = 'source-over';
+    maskCtx.fillStyle = 'rgba(70, 130, 200, 1)';
+  }
   maskCtx.beginPath();
   maskCtx.arc(x, y, r, 0, Math.PI * 2);
   maskCtx.fill();
 }
 
-async function handleMagicWand(x, y) {
-  if (!state.originalImage) return;
-  showStatus('Auto-selecting... please wait.', 'info');
-
-  try {
-    const res = await fetch('/api/magic-wand', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        image:     state.originalDataURL,
-        x:         Math.round(x),
-        y:         Math.round(y),
-        tolerance: state.tolerance,
-        canvas_w:  state.canvasW,
-        canvas_h:  state.canvasH,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { showStatus(data.error, 'error'); return; }
-
-    // Composite the returned mask onto the mask canvas
-    const img = new Image();
-    img.onload = () => {
-      maskCtx.globalCompositeOperation = 'source-over';
-      maskCtx.drawImage(img, 0, 0, state.canvasW, state.canvasH);
-    };
-    img.src = data.mask;
-    showStatus('Selection added. Click more areas or paint to refine.', 'success');
-  } catch (err) {
-    showStatus('Magic wand request failed.', 'error');
-  }
-}
-
 // ── Clear mask ────────────────────────────────────────────────────────────────
 clearMaskBtn.addEventListener('click', () => {
   maskCtx.clearRect(0, 0, state.canvasW, state.canvasH);
-  showStatus('Mask cleared.', 'info');
+  showStatus('Selection cleared.', 'info');
 });
 
 // ── Visualize ─────────────────────────────────────────────────────────────────
@@ -286,11 +288,10 @@ visualizeBtn.addEventListener('click', async () => {
     showStatus('Look up a Sherwin-Williams color code first.', 'error'); return;
   }
 
-  // Check mask has content
   const maskData = maskCtx.getImageData(0, 0, state.canvasW, state.canvasH);
   const hasContent = maskData.data.some((v, i) => i % 4 === 3 && v > 0);
   if (!hasContent) {
-    showStatus('Paint over the walls you want to recolor (use brush or magic wand).', 'error');
+    showStatus('No walls selected. Click "Detect Walls Automatically" first.', 'error');
     return;
   }
 
@@ -298,13 +299,12 @@ visualizeBtn.addEventListener('click', async () => {
   visualizeBtn.innerHTML = '<span class="spinner"></span> Processing…';
   showStatus('Applying paint color — this may take a few seconds…', 'info');
 
-  // Export mask as PNG data URL
   const maskDataURL = maskCanvas.toDataURL('image/png');
 
   try {
     const res = await fetch('/api/visualize', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         image:      state.originalDataURL,
         mask:       maskDataURL,
@@ -318,7 +318,6 @@ visualizeBtn.addEventListener('click', async () => {
       return;
     }
 
-    // Draw result
     const resultImg = new Image();
     resultImg.onload = () => {
       resultCtx.clearRect(0, 0, state.canvasW, state.canvasH);
@@ -358,7 +357,7 @@ function setViewMode(mode) {
   state.viewMode = mode;
   viewBtns.forEach(b => b.classList.toggle('active', b.dataset.view === mode));
 
-  const showResult  = mode === 'result'  || mode === 'compare';
+  const showResult  = mode === 'result' || mode === 'compare';
   const showMask    = mode === 'original';
   const showCompare = mode === 'compare';
 
@@ -366,10 +365,7 @@ function setViewMode(mode) {
   compareHandle.style.display  = showCompare ? '' : 'none';
   maskCanvas.style.display     = showMask ? '' : 'none';
 
-  if (showCompare) {
-    // Start compare at 50%
-    setComparePos(state.canvasW / 2);
-  }
+  if (showCompare) setComparePos(state.canvasW / 2);
 }
 
 // ── Compare drag ──────────────────────────────────────────────────────────────
@@ -382,9 +378,7 @@ window.addEventListener('mousemove', e => {
 });
 window.addEventListener('mouseup', () => { compareDragging = false; });
 
-compareHandle.addEventListener('touchstart', e => {
-  e.preventDefault(); compareDragging = true;
-});
+compareHandle.addEventListener('touchstart', e => { e.preventDefault(); compareDragging = true; });
 window.addEventListener('touchmove', e => {
   if (!compareDragging) return;
   const rect = mainCanvas.getBoundingClientRect();
@@ -403,11 +397,8 @@ function showStatus(msg, type = 'info') {
   statusMsg.textContent = msg;
   statusMsg.className = `status-msg visible ${type}`;
 }
-function hideStatus() {
-  statusMsg.className = 'status-msg';
-}
+function hideStatus() { statusMsg.className = 'status-msg'; }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-updateToolUI();
-// Activate brush tool by default
 document.querySelector('.tool-btn[data-tool="brush"]').classList.add('active');
+detectWallsBtn.disabled = true; // enabled after image loads

@@ -9,6 +9,69 @@ import base64
 import requests
 import re
 import os
+import threading
+
+# Lazy-loaded AI segmentation model (loaded once on first use)
+_seg_model = None
+_seg_processor = None
+_seg_lock = threading.Lock()
+
+# ADE20K class IDs that represent wall/ceiling surfaces we should paint.
+# These are the label indices from the SegFormer ADE20K label map.
+# "wall" = 0, "ceiling" = 5  (0-indexed after background shift)
+# We detect all wall-like surfaces and let the user deselect if needed.
+ADE20K_WALL_LABELS = {"wall", "ceiling"}  # add "partition" etc. if desired
+
+def load_seg_model():
+    """Load SegFormer segmentation model (once, thread-safe)."""
+    global _seg_model, _seg_processor
+    with _seg_lock:
+        if _seg_model is None:
+            from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
+            import torch
+            model_id = "nvidia/segformer-b2-finetuned-ade-512-512"
+            _seg_processor = AutoImageProcessor.from_pretrained(model_id)
+            _seg_model = SegformerForSemanticSegmentation.from_pretrained(model_id)
+            _seg_model.eval()
+    return _seg_processor, _seg_model
+
+
+def detect_walls_ai(img_rgb: np.ndarray) -> np.ndarray:
+    """
+    Use SegFormer (ADE20K) to detect wall pixels in the image.
+    Returns a uint8 mask (0 = not wall, 255 = wall).
+    """
+    import torch
+    import torch.nn.functional as F
+
+    processor, model = load_seg_model()
+
+    pil_img = Image.fromarray(img_rgb)
+    h, w = img_rgb.shape[:2]
+
+    inputs = processor(images=pil_img, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    # Upsample logits to original image size
+    logits = outputs.logits  # (1, num_classes, H/4, W/4)
+    upsampled = F.interpolate(logits, size=(h, w), mode="bilinear", align_corners=False)
+    seg_map = upsampled.argmax(dim=1)[0].cpu().numpy()  # (H, W)  int indices
+
+    # Build mask for wall-related classes
+    id2label = model.config.id2label
+    wall_ids = {k for k, v in id2label.items() if v.lower() in ADE20K_WALL_LABELS}
+
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for wid in wall_ids:
+        mask[seg_map == wid] = 255
+
+    # Morphological clean-up: close small holes, remove tiny specks
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+
+    return mask
 
 app = Flask(__name__)
 CORS(app)
@@ -392,6 +455,26 @@ def magic_wand_select(img_rgb: np.ndarray, x: int, y: int,
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/api/detect-walls', methods=['POST'])
+def api_detect_walls():
+    """
+    Use the AI segmentation model to automatically detect walls in the image.
+    Expects JSON: { "image": "<base64 data URL>" }
+    Returns JSON: { "mask": "<base64 PNG of wall mask>" }
+    """
+    data = request.get_json()
+    if not data or not data.get('image'):
+        return jsonify({'error': 'Missing image data.'}), 400
+
+    try:
+        img_rgb = decode_image(data['image'])
+        mask = detect_walls_ai(img_rgb)
+        mask_rgb = np.stack([mask, mask, mask], axis=-1)
+        return jsonify({'mask': encode_image(mask_rgb)})
+    except Exception as e:
+        return jsonify({'error': f'Wall detection failed: {str(e)}'}), 500
 
 
 @app.route('/api/color/<path:color_code>')
